@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5cdfdfbc5df2c414e952a12e3fc10d6f, type: 3}
+  m_Name: Skill data - Time lost shard
+  m_EditorClassIdentifier: 
+  displayName: "\u65F6\u7A7A\u7A81\u88AD"
+  description: "\u5728\u8FDB\u884C\u51B2\u523A\u4E4B\u524D\u751F\u6210\u4E00\u4E2A\u65F6\u95F4\u788E\u7247\n\u751F\u6210\u7684\u65F6\u95F4\u788E\u7247\u5C06\u7EE7\u627F\u65F6\u95F4\u788E\u7247\u6280\u80FD\u7684\u5168\u90E8\u5347\u7EA7\u6548\u679C"
+  icon: {fileID: 21300000, guid: 6f98b3e70c3ad8a48a0396785dad48e8, type: 3}
+  cost: 2
+  unlockedByDefault: 0
+  skillType: 0
+  upgradeData:
+    upgradeType: 4
+    cooldown: 0
+    damageScaleData:
+      phyiscal: 1
+      elemental: 1
+      chillDuration: 3
+      chillSlowMulitplier: 0.2
+      burnDuratin: 3
+      burnDamageScale: 1
+      shockDuration: 3
+      shockDamageScale: 1
+      shockCharge: 0.4
