@@ -677,6 +677,7 @@ Health -= FinalDamage
 * 闪电
 
  ![gif](https://github.com/peinanlin/2D-RPG/blob/master/img/%E7%94%B5%E5%87%BB.gif)
+
  
 * 冷冻
 
