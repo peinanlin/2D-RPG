@@ -954,7 +954,7 @@ Portal Scroll
 
 ---
 
-# 🔧 物品效果数据
+# 物品效果数据
 
 物品效果通过 **ItemEffect_DataSO** ScriptableObject 管理。
 
