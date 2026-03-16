@@ -121,10 +121,10 @@ EntityState.cs
 
 # 敌人 AI 系统
 
+
 敌人 AI 使用两种架构：
-
 ## 普通敌人 FSM
-
+![image](https://github.com/peinanlin/2D-RPG/blob/master/img/%E6%95%8C%E4%BA%BA%E7%8A%B6%E6%80%81%E6%9C%BA.png)
 普通敌人使用 **有限状态机（FSM）**。
 
 状态包括：
@@ -145,19 +145,36 @@ Enemy_MoveState.cs
 Enemy_AttackState.cs
 Enemy_StunnedState.cs
 ```
+### 如何进入攻击状态
+![image](https://github.com/peinanlin/2D-RPG/blob/master/img/%E6%95%8C%E4%BA%BA%E7%8A%B6%E6%80%81%E6%9C%BA%E6%A3%80%E6%B5%8B.png)
+* 黄色线：玩家检测距离（playerCheckDistance）
+表示敌人朝当前朝向发出的玩家搜索射线范围。
+敌人会通过 Physics2D.Raycast() 从 playerCheck.position 出发，沿 facingDir 方向检测玩家；如果检测到玩家，就可以进入战斗相关逻辑。
+
+* 蓝色线：攻击距离（attackDistance）
+表示敌人进入攻击状态的有效距离范围。
+当玩家进入这个范围后，敌人状态机会从 battleState 切换到 attackState。
+
+* 绿色线：最小后撤距离（minRetreatDistance）
+表示敌人与玩家距离过近时的安全距离阈值。
+当玩家贴得太近时，敌人不会一味前压，而是可以根据战斗状态逻辑进行后撤，从而避免敌人和玩家完全重叠，提升战斗表现与可读性。
 
 ---
 
 ## Boss 行为树 AI
 
-Boss 使用 **Behavior Designer 行为树**。
+Boss 使用**Behavior Designer 行为树**实现战斗 AI。
+相比普通敌人使用的 有限状态机（FSM），Boss 的战斗逻辑更复杂，因此使用行为树来实现 条件驱动的技能选择与战斗阶段控制。
 
-行为树负责：
+![image](https://github.com/peinanlin/2D-RPG/blob/master/img/boss%E8%A1%8C%E4%B8%BA%E6%A0%91.png)
 
-* 技能选择
-* 距离判断
-* 冷却判断
-* 攻击逻辑
+Boss 战斗主要包含三个行为：
+
+* 追击玩家
+
+* 释放冲击波攻击
+
+* 释放火球技能
 
 相关脚本：
 
@@ -172,7 +189,7 @@ Skill.cs
 
 ---
 
-# Boss 技能对象池优化
+### Boss 技能对象池优化
 
 在 Boss 战斗中，Boss 会频繁释放：
 
@@ -384,21 +401,268 @@ Auto-fill with all ItemDataSO
 * 元素伤害
 * 元素抗性
 
-核心脚本：
+伤害计算由以下三个核心模块共同完成：
+
+```text
+Entity_Combat.cs   负责攻击行为与命中检测
+Entity_Stats.cs    负责角色属性计算
+Entity_Health.cs   负责伤害结算与生命值变化
+```
+
+系统将 **攻击逻辑、属性计算、伤害结算** 三部分进行解耦，使战斗系统更易扩展和维护。
+
+---
+
+## 战斗系统架构
+
+整体战斗流程如下：
+
+```text
+攻击触发
+      │
+      ▼
+Entity_Combat.PerformAttack()
+      │
+      ▼
+读取攻击者属性 (Entity_Stats)
+      │
+      ▼
+计算攻击数据 (AttackData)
+      │
+      ▼
+目标 TakeDamage()
+      │
+      ▼
+闪避判定
+      │
+      ▼
+护甲减伤计算
+      │
+      ▼
+元素抗性计算
+      │
+      ▼
+最终伤害结算
+      │
+      ▼
+扣除生命值 (Entity_Health)
+```
+
+这种设计将 **攻击行为** 与 **伤害计算** 分离，使不同攻击技能可以复用同一套战斗系统。
+
+---
+
+## 伤害计算公式
+
+最终伤害由 **物理伤害 + 元素伤害** 组成。
+
+```text
+FinalDamage =
+PhysicalDamageTaken
++
+ElementalDamageTaken
+```
+
+---
+
+## 物理伤害计算
+
+### 1. 基础攻击伤害
+
+基础物理伤害由攻击力与力量属性共同决定：
 
 ```
-Stat.cs
-Entity_Stats.cs
-Entity_Combat.cs
+BaseDamage = Damage + Strength
 ```
 
-伤害计算包含：
+对应代码：
 
-* 物理伤害
-* 暴击
-* 护甲减伤
-* 元素伤害
+```csharp
+GetBaseDamage() => offense.damage + major.strength
+```
+
+---
+
+### 2. 暴击计算
+
+暴击率由 **基础暴击率 + 敏捷加成** 决定：
+
+```
+CritChance = CritChanceStat + (Agility × 0.3)
+```
+
+暴击伤害倍率由 **暴击伤害 + 力量加成** 决定：
+
+```
+CritMultiplier = (CritPower + Strength × 0.5) / 100
+```
+
+如果触发暴击：
+
+```
+PhysicalDamage = BaseDamage × CritMultiplier
+```
+
+否则：
+
+```
+PhysicalDamage = BaseDamage
+```
+
+---
+
+## 护甲减伤计算
+
+目标的护甲会减少物理伤害。
+
+### 1. 基础护甲
+
+```
+Armor = ArmorStat + Vitality
+```
+
+对应代码：
+
+```csharp
+GetBaseArmor() => defense.armor + major.vitality
+```
+
+---
+
+### 2. 护甲穿透
+
+攻击者可以拥有 **Armor Reduction** 来降低目标护甲：
+
+```
+EffectiveArmor = Armor × (1 - ArmorReduction)
+```
+
+---
+
+### 3. 护甲减伤公式
+
+```
+Mitigation = EffectiveArmor / (EffectiveArmor + 100)
+```
+
+减伤上限：
+
+```
+MaxMitigation = 85%
+```
+
+最终物理伤害：
+
+```
+PhysicalDamageTaken = PhysicalDamage × (1 - Mitigation)
+```
+
+---
+
+## 元素伤害系统
+
+攻击可能附带三种元素伤害：
+
+```
+Fire
+Ice
+Lightning
+```
+
+系统会选择 **最高元素伤害作为主元素**。
+
+---
+
+### 元素伤害计算
+
+```
+ElementDamage =
+HighestElementDamage
++ (OtherElementDamage × 0.5)
++ Intelligence
+```
+
+其中：
+
+* Intelligence 每点提供 **+1 元素伤害**
+
+---
+
+## 元素抗性系统
+
+目标角色拥有对应元素抗性：
+
+```
+FireResistance
+IceResistance
+LightningResistance
+```
+
+抗性还会受到 **Intelligence 加成**：
+
+```
+Resistance = BaseResistance + (Intelligence × 0.5)
+```
+
+抗性上限：
+
+```
+75%
+```
+
+最终元素伤害：
+
+```
+ElementalDamageTaken = ElementDamage × (1 - Resistance)
+```
+
+---
+
+## 闪避
+
+目标在受到攻击前会进行闪避判定：
+
+```
+Evasion = BaseEvasion + (Agility × 0.5)
+```
+
+闪避上限：
+
+```
+85%
+```
+
+如果触发闪避：
+
+```
+攻击完全无效
+```
+
+---
+
+## 最终伤害结算
+
+当所有计算完成后：
+
+```
+FinalDamage =
+PhysicalDamageTaken
++
+ElementalDamageTaken
+```
+
+最终生命值变化：
+
+```
+Health -= FinalDamage
+```
+
+并触发：
+
+* 受击特效
+* 击退效果
 * 状态效果
+
 
 ---
 
@@ -407,8 +671,16 @@ Entity_Combat.cs
 状态系统负责管理：
 
 * 燃烧
+
+ ![gif](https://github.com/peinanlin/2D-RPG/blob/master/img/%E7%87%83%E7%83%A7.gif)
+  
 * 闪电
-* 减速
+
+ ![gif](https://github.com/peinanlin/2D-RPG/blob/master/img/%E7%94%B5%E5%87%BB.gif)
+ 
+* 冷冻
+
+![gif](https://github.com/peinanlin/2D-RPG/blob/master/img/%E5%86%B7%E5%86%BB.gif)
 
 核心脚本：
 
@@ -491,7 +763,209 @@ GameManager 使用 `DontDestroyOnLoad` 跨场景存在。
 
 ### 数据驱动设计
 
-大量配置通过 **ScriptableObject** 管理。
+本项目采用 **ScriptableObject + 数据驱动架构** 来管理游戏中的技能、装备、消耗品等配置数据。
+通过这种设计，游戏逻辑与游戏配置完全解耦。所有技能数值、物品属性、掉落概率等都可以直接在 Unity Inspector 中进行配置，而无需修改代码。
+项目中的主要数据包括：
+
+* 技能数据（Skill Data）
+* 装备数据（Equipment Data）
+* 消耗品数据（Consumable Data）
+* 物品效果数据（Item Effect Data）
+
+所有数据统一存放在：
+
+```
+Assets/Data
+```
+
+---
+
+# 技能数据（Skill Data）
+
+技能配置通过 **SkillDataSO** ScriptableObject 管理。
+
+技能数据目录：
+
+```
+Assets/Data/Skill Data
+```
+
+![image](https://github.com/peinanlin/2D-RPG/blob/master/img/%E6%8A%80%E8%83%BD%E6%95%B0%E6%8D%AE.png)
+
+当前项目包含以下技能类：
+
+* Dash（冲刺）
+* Domain Expansion（领域技能）
+* Sword Throw（飞剑）
+* Time Echo（时间回响）
+* Time Shard（时间碎片）
+
+每个技能都有一个独立的 ScriptableObject，例如：
+
+```
+Skill data - Quick dash
+```
+
+技能数据字段说明：
+
+* Display Name  技能名称
+* Description  技能说明
+* Icon  技能图标
+* Cost  解锁技能消耗的技能点
+* Unlocked By Default  是否默认解锁
+* Skill Type  技能类型
+* Upgrade Type  技能升级类型
+* Cooldown  技能冷却时间
+* Damage Scale Data  技能伤害倍率数据
+
+这些配置会在游戏运行时被技能系统读取，并由对应技能脚本执行逻辑，例如：
+
+```
+Skill_Dash.cs
+Skill_SwordThrow.cs
+Skill_TimeEcho.cs
+```
+
+通过这种方式可以直接在 Inspector 中调整技能数值。
+
+---
+
+# 装备数据（Equipment Data）
+
+装备配置通过 **EquipmentDataSO** ScriptableObject 管理。
+
+装备数据目录：
+
+```
+Assets/Data/Equipment Data
+```
+![image](https://github.com/peinanlin/2D-RPG/blob/master/img/%E8%A3%85%E5%A4%87%E6%95%B0%E6%8D%AE.png)
+
+装备数据包含以下字段：
+
+* Item Price  商店出售价格
+* Min Stack Size At Shop  商店最小出售数量
+* Max Stack Size At Shop  商店最大出售数量
+
+---
+
+### 掉落系统配置
+
+* Item Rarity  物品稀有度
+* Drop Chance  基础掉落概率
+* Max Drop Chance  最大掉落概率
+
+这些参数会被 **Entity_DropManager 掉落系统**使用。
+
+---
+
+### 合成系统配置
+
+* Craft Recipe  合成配方列表
+
+用于武器合成系统。
+
+---
+
+### 装备基础信息
+
+* Item Name  物品名称
+* Item Icon  物品图标
+* Item Type  物品类型
+* Max Stack Size  最大堆叠数量
+
+---
+
+### 装备属性加成（Modifiers）
+
+装备可以提供多个属性加成。
+
+每个 Modifier 包含：
+
+* Stat Type  属性类型
+* Value  属性数值
+
+例如：
+
+```
+Strength +10
+Intelligence +4
+Health Regen +2.5
+```
+
+这些属性会在装备时添加到 **Entity_Stats 属性系统**中。
+
+---
+
+# 消耗品数据（Consumable Items）
+
+消耗品通过 **ConsumableItemDataSO** 配置。
+
+消耗品数据目录：
+
+```
+Assets/Data/Consumable Items Data
+```
+![image](https://github.com/peinanlin/2D-RPG/blob/master/img/%E6%B6%88%E8%80%97%E5%93%81%E6%95%B0%E6%8D%AE.png)
+
+消耗品字段说明：
+
+* Item Price  商店价格
+* Min Stack Size At Shop  商店最小出售数量
+* Max Stack Size At Shop  商店最大出售数量
+
+---
+
+### 掉落系统配置
+
+* Item Rarity  掉落稀有度
+* Drop Chance  掉落概率
+* Max Drop Chance  最大掉落概率
+
+---
+
+### 合成配置
+
+* Craft Recipe  合成配方
+
+---
+
+### 消耗品基础信息
+
+* Item Name  物品名称
+* Item Icon  物品图标
+* Item Type  物品类型
+* Max Stack Size  最大堆叠数量
+
+---
+
+### 消耗品效果
+
+* Item Effect  物品使用时触发的效果
+
+例如：
+
+```
+Portal Scroll
+```
+
+该效果会在使用时触发对应的 **ItemEffect_DataSO**。
+
+---
+
+# 🔧 物品效果数据（Item Effect Data）
+
+物品效果通过 **ItemEffect_DataSO** ScriptableObject 管理。
+
+不同效果对应不同 ScriptableObject，例如：
+
+* Heal On Damage
+* Portal Scroll
+* Buff Effects
+
+当玩家使用消耗品或装备时，系统会读取对应效果并执行。
+![image](https://github.com/peinanlin/2D-RPG/blob/master/img/%E7%89%A9%E5%93%81%E6%95%88%E6%9E%9C%E6%95%B0%E6%8D%AE.png)
+---
 
 ---
 
