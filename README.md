@@ -147,6 +147,7 @@ Enemy_StunnedState.cs
 ```
 ### 如何进入攻击状态
 ![image](https://github.com/peinanlin/2D-RPG/blob/master/img/%E6%95%8C%E4%BA%BA%E7%8A%B6%E6%80%81%E6%9C%BA%E6%A3%80%E6%B5%8B.png)
+
 * 黄色线：玩家检测距离（playerCheckDistance）
 表示敌人朝当前朝向发出的玩家搜索射线范围。
 敌人会通过 Physics2D.Raycast() 从 playerCheck.position 出发，沿 facingDir 方向检测玩家；如果检测到玩家，就可以进入战斗相关逻辑。
@@ -275,6 +276,8 @@ SkillObject_TimeEcho.cs
 UI_SkillTree.cs
 UI_TreeNode.cs
 ```
+
+## 技能展示B站链接：https://www.bilibili.com/video/BV1e8wXz8Evf/?spm_id_from=333.1387.homepage.video_card.click&vd_source=d319ae0b424260d71c40698aacb9cfcb
 
 ---
 
